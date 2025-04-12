@@ -18,14 +18,14 @@ def compute_discounted_return(rewards, dones, last_values, last_dones, gamma=0.9
 
 # Compute gae
 def compute_gae(rewards, values, dones, last_values, last_dones, gamma=0.99, lamb=0.95):
-	#rewards    : (n_step, n_env)
-	#values     : (n_step, n_env)
-	#dones      : (n_step, n_env)
-	#advs       : (n_step, n_env)
-	#last_values: (n_env)
-	#last_dones : (n_env)
-	advs         = np.zeros_like(rewards)
-	n_step       = len(rewards)
+	# rewards    : (n_step, n_env)
+	# values     : (n_step, n_env)
+	# dones      : (n_step, n_env)
+	# advs       : (n_step, n_env)
+	# last_values: (n_env)
+	# last_dones : (n_env)
+	advs = np.zeros_like(rewards)
+	n_step = len(rewards)
 	last_gae_lam = 0.0
 
 	for t in reversed(range(n_step)):
@@ -36,30 +36,30 @@ def compute_gae(rewards, values, dones, last_values, last_dones, gamma=0.99, lam
 			next_nonterminal = 1.0 - dones[t+1]
 			next_values = values[t+1]
 
-		delta   = rewards[t] + gamma*next_values*next_nonterminal - values[t]
+		delta = rewards[t] + gamma*next_values*next_nonterminal - values[t]
 		advs[t] = last_gae_lam = delta + gamma*lamb*next_nonterminal*last_gae_lam
 
 	return advs + values
 
-#Runner for multiple environment
+# Runner for multiple environment
 class EnvRunner:
 	# Constructor
 	def __init__(self, env, s_dim, a_dim, n_step=5, gamma=0.99, lamb=0.95, device='cpu'):
-		self.env    = env
-		self.n_env  = env.n_env
-		self.s_dim  = s_dim
-		self.a_dim  = a_dim
+		self.env = env
+		self.n_env = env.n_env
+		self.s_dim = s_dim
+		self.a_dim = a_dim
 		self.n_step = n_step
-		self.gamma  = gamma
-		self.lamb   = lamb
+		self.gamma = gamma
+		self.lamb = lamb
 		self.device = device
 
-		#last states: (n_env, s_dim)
-		#last dones : (n_env)
+		# last states: (n_env, s_dim)
+		# last dones : (n_env)
 		self.states = self.env.reset()
 		self.dones  = np.ones((self.n_env), dtype=bool)
 
-		#Storages (state, action, value, reward, a_logp, done)
+		# Storages (state, action, value, reward, a_logp, done)
 		self.mb_states  = np.zeros((self.n_step, self.n_env, self.s_dim), dtype=np.float32)
 		self.mb_actions = np.zeros((self.n_step, self.n_env, self.a_dim), dtype=np.float32)
 		self.mb_values  = np.zeros((self.n_step, self.n_env), dtype=np.float32)
@@ -68,7 +68,7 @@ class EnvRunner:
 		self.mb_dones   = np.zeros((self.n_step, self.n_env), dtype=bool)
 		
 
-		#Reward & length recorder
+		# Reward & length recorder
 		self.total_rewards = np.zeros((self.n_env), dtype=np.float32)
 		self.total_len = np.zeros((self.n_env), dtype=np.int32)
 		self.reward_buf = deque(maxlen=100)
@@ -76,16 +76,16 @@ class EnvRunner:
 
 	# Run n steps to get a batch
 	def run(self, policy_net, value_net):
-		#1. Run n steps
+		# 1. Run n steps
 		#-------------------------------------
 		for step in range(self.n_step):
-			#self.states : (n_env, s_dim)
-			#actions     : (n_env, a_dim)
-			#self.dones  : (n_env)
-			#a_logps     : (n_env)
-			#values      : (n_env)
-			#rewards     : (n_env)
-			#TODO 3: Run a step to collect data
+			# self.states : (n_env, s_dim)
+			# actions     : (n_env, a_dim)
+			# self.dones  : (n_env)
+			# a_logps     : (n_env)
+			# values      : (n_env)
+			# rewards     : (n_env)
+			# TODO 3: Run a step to collect data
 			'''
 			self.mb_states[step, :]  = ...
 			self.mb_dones[step, :]   = ...
@@ -95,6 +95,24 @@ class EnvRunner:
 			self.states, rewards, self.dones, info = self.env.step(actions)
 			self.mb_rewards[step, :] = ...
 			'''
+			# Record the current state and done flag for each environment.
+			self.mb_states[step, :] = self.states.copy()
+			self.mb_dones[step, :]  = self.dones.copy()
+
+			# Query the policy network to obtain actions and the associated log-probabilities.
+			# (Assume policy_net accepts a NumPy array state by converting it internally or via torch.from_numpy.)
+			actions, a_logps = policy_net(self.states)
+			self.mb_actions[step, :] = actions.copy()
+			self.mb_a_logps[step, :] = a_logps.copy()
+
+			# Get the value estimates for the current states from the value network.
+			self.mb_values[step, :] = value_net(torch.from_numpy(self.states).float().to(self.device)).cpu().detach().numpy()
+
+			# Step in the environment using the selected actions.
+			self.states, rewards, self.dones, info = self.env.step(actions)
+			
+			# Record the rewards obtained during this step.
+			self.mb_rewards[step, :] = rewards.copy()
 
 		last_values = value_net(torch.from_numpy(self.states).float().to(self.device)).cpu().numpy()
 		self.record()
@@ -103,11 +121,11 @@ class EnvRunner:
 		#-------------------------------------
 		mb_returns = compute_gae(self.mb_rewards, self.mb_values, self.mb_dones, last_values, self.dones, self.gamma, self.lamb)
 
-		#mb_states : (n_step*n_env, s_dim)
-		#mb_actions: (n_step*n_env) or (n_env*n_step, a_dim)
-		#mb_a_logps: (n_step*n_env)
-		#mb_values : (n_step*n_env)
-		#mb_returns: (n_step*n_env)
+		# mb_states : (n_step*n_env, s_dim)
+		# mb_actions: (n_step*n_env) or (n_env*n_step, a_dim)
+		# mb_a_logps: (n_step*n_env)
+		# mb_values : (n_step*n_env)
+		# mb_returns: (n_step*n_env)
 		return self.mb_states.reshape(self.n_step*self.n_env, self.s_dim), \
 				self.mb_actions.reshape(self.n_step*self.n_env, self.a_dim), \
 				self.mb_a_logps.flatten(), \
