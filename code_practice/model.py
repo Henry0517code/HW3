@@ -114,6 +114,13 @@ class ValueNet(nn.Module):
 		'''
 		self.main = ...
 		'''
+		self.main = nn.Sequential(
+            init_(nn.Linear(s_dim, 64)),
+            nn.ReLU(),
+            init_(nn.Linear(64, 64)),
+            nn.ReLU(),
+            init_(nn.Linear(64, 1))  # final layer outputs a single value per state
+        )
 
 	# Forward
 	def forward(self, state):
