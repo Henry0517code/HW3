@@ -8,7 +8,7 @@ def init(module, weight_init, bias_init, gain=1):
     bias_init(module.bias.data)
     return module
 
-#Normal distribution module with fixed mean and std.
+# Normal distribution module with fixed mean and std.
 class FixedNormal(torch.distributions.Normal):
 	# Log-probability
 	def log_probs(self, actions):
@@ -22,7 +22,7 @@ class FixedNormal(torch.distributions.Normal):
 	def mode(self):
 		return self.mean
 
-#Diagonal Gaussian distribution
+# Diagonal Gaussian distribution
 class DiagGaussian(nn.Module):
 	# Constructor
 	def __init__(self, inp_dim, out_dim, std=0.5):
@@ -41,7 +41,7 @@ class DiagGaussian(nn.Module):
 		mean = self.fc_mean(x)
 		return FixedNormal(mean, self.std.to(x.device))
 
-#Policy network
+# Policy network
 class PolicyNet(nn.Module):
 	# Constructor
 	def __init__(self, s_dim, a_dim, std=0.5):
@@ -53,16 +53,25 @@ class PolicyNet(nn.Module):
 			lambda x: nn.init.constant_(x, 0),
 			nn.init.calculate_gain('relu')
 		)
-		#TODO 1: policy network architecture
+		# TODO 1: policy network architecture
 		'''
 		self.main = ...
 		self.dist = ...
 		'''
+		# Using nn.Sequential to define the main network for feature extraction.
+		self.main = nn.Sequential(
+			init_(nn.Linear(s_dim, 64)),
+			nn.ReLU(),
+			init_(nn.Linear(64, 64)),
+			nn.ReLU()
+		)
+		# Diagonal Gaussian distribution: maps the 64-dim extracted features to a distribution over a_dim actions.
+		self.dist = DiagGaussian(64, a_dim, std=std)
 
 	# Forward
 	def forward(self, state, deterministic=False):
 		feature = self.main(state)
-		dist    = self.dist(feature)
+		dist = self.dist(feature)
 
 		if deterministic:
 			action = dist.mode()
@@ -74,7 +83,7 @@ class PolicyNet(nn.Module):
 	# Output action
 	def action_step(self, state, deterministic=True):
 		feature = self.main(state)
-		dist    = self.dist(feature)
+		dist = self.dist(feature)
 
 		if deterministic:
 			action = dist.mode()
@@ -86,10 +95,10 @@ class PolicyNet(nn.Module):
 	# Evaluate log-probs & entropy
 	def evaluate(self, state, action):
 		feature = self.main(state)
-		dist    = self.dist(feature)
+		dist = self.dist(feature)
 		return dist.log_probs(action), dist.entropy()
 
-#Value network
+# Value network
 class ValueNet(nn.Module):
 	# Constructor
 	def __init__(self, s_dim):
@@ -101,7 +110,7 @@ class ValueNet(nn.Module):
 			lambda x: nn.init.constant_(x, 0),
 			nn.init.calculate_gain('relu')
 		)
-		#TODO 2: value network architecture
+		# TODO 2: value network architecture
 		'''
 		self.main = ...
 		'''
