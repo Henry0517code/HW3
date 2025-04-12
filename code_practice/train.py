@@ -8,12 +8,12 @@ import time
 import numpy as np
 
 def main():
-	#TODO 5: Adjust these parameters if needed
-	#Parameters that can be modified
-	#----------------------------
-	n_env          = 8
-	n_step         = 128
-	sample_mb_size = 64
+	# TODO 5: Adjust these parameters if needed
+	# Parameters that can be modified
+	# ----------------------------
+	n_env          = 256
+	n_step         = 256
+	sample_mb_size = 2048
 	sample_n_epoch = 4
 	a_std          = 0.5
 	lamb           = 0.95
@@ -21,10 +21,11 @@ def main():
 	clip_val       = 0.2
 	lr             = 1e-4
 	n_iter         = 30000
-	device         = 'gpu'
+	device         = 'cpu'
+	torch.set_num_threads(12)
 
-	#Parameters that are fixed
-	#----------------------------
+	# Parameters that are fixed
+	# ----------------------------
 	s_dim          = 14
 	a_dim          = 1
 	mb_size        = n_env*n_step
@@ -34,8 +35,8 @@ def main():
 	check_step     = 500
 	save_dir       = './save'
 
-	#Create multiple environments
-	#----------------------------
+	# Create multiple environments
+	# ----------------------------
 	env    = MultiEnv([make_env(i, rand_seed=int(time.time())) for i in range(n_env)])
 	runner = EnvRunner(
 		env,
@@ -47,8 +48,8 @@ def main():
 		device=device
 	)
 
-	#Create model
-	#----------------------------
+	# Create model
+	# ----------------------------
 	policy_net = PolicyNet(s_dim, a_dim, a_std).to(device)
 	value_net  = ValueNet(s_dim).to(device)
 	agent      = PPO(
@@ -63,8 +64,8 @@ def main():
 		device=device
 	)
 
-	#Load model
-	#----------------------------
+	# Load model
+	# ----------------------------
 	if not os.path.exists(save_dir):
 		os.mkdir(save_dir)
 
@@ -78,20 +79,20 @@ def main():
 	else:
 		start_it = 0
 
-	#Start training
-	#----------------------------
+	# Start training
+	# ----------------------------
 	t_start = time.time()
 	policy_net.train()
 	value_net.train()
 
 	for it in range(start_it, n_iter):
-		#Run the environment
+		# Run the environment
 		with torch.no_grad():
 			mb_obs, mb_actions, mb_old_a_logps, mb_values, mb_returns = runner.run(policy_net, value_net)
 			mb_advs = mb_returns - mb_values
 			mb_advs = (mb_advs - mb_advs.mean()) / (mb_advs.std() + 1e-6)
 
-		#Train
+		# Train
 		pg_loss, v_loss = agent.train(
 			mb_obs,
 			mb_actions,
@@ -101,7 +102,7 @@ def main():
 			mb_old_a_logps
 		)
 
-		#Print the result
+		# Print the result
 		if it % disp_step == 0:
 			agent.lr_decay(it, n_iter)
 			n_sec = time.time() - t_start
@@ -119,7 +120,7 @@ def main():
 			print("mean length  = {:.2f}".format(mean_len))
 			print()
 
-		#Save model
+		# Save model
 		if it % save_step == 0:
 			print("Saving the model ... ", end="")
 			torch.save({
@@ -134,7 +135,7 @@ def main():
 				with open(os.path.join(save_dir, "return.txt"), "a") as file:
 					file.write("{:d},{:.4f},{:.4f}\n".format(it, mean_return, std_return))
 
-		#Save checkpoint
+		# Save checkpoint
 		if it % check_step == 0:
 			print("Saving the checkpoint ... ", end="")
 			torch.save({
