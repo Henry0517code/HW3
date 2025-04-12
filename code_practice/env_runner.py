@@ -101,7 +101,10 @@ class EnvRunner:
 
 			# Query the policy network to obtain actions and the associated log-probabilities.
 			# (Assume policy_net accepts a NumPy array state by converting it internally or via torch.from_numpy.)
-			actions, a_logps = policy_net(self.states)
+			actions, a_logps = policy_net(torch.from_numpy(self.states).float().to(self.device))
+			actions = actions.cpu().detach().numpy()
+			a_logps = a_logps.cpu().detach().numpy()
+
 			self.mb_actions[step, :] = actions.copy()
 			self.mb_a_logps[step, :] = a_logps.copy()
 

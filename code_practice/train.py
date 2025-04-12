@@ -21,7 +21,7 @@ def main():
 	clip_val       = 0.2
 	lr             = 1e-4
 	n_iter         = 30000
-	device         = 'cpu'
+	device         = 'gpu'
 
 	#Parameters that are fixed
 	#----------------------------
