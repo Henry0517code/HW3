@@ -71,7 +71,7 @@ def main():
 
 	if os.path.exists(os.path.join(save_dir, "model.pt")):
 		print("Loading the model ... ", end="")
-		state_dict = torch.load(os.path.join(save_dir, "model.pt"), map_location=torch.device(device))
+		state_dict = torch.load(os.path.join(save_dir, "model.pt"))
 		policy_net.load_state_dict(state_dict["PolicyNet"])
 		value_net.load_state_dict(state_dict["ValueNet"])
 		start_it = state_dict["it"]
